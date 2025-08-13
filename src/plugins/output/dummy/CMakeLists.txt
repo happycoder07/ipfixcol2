@@ -1,9 +1,17 @@
+# Find libmicrohttpd
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(MHD REQUIRED libmicrohttpd)
+
 # Create a linkable module
 add_library(dummy-output MODULE
     dummy.c
     config.c
     config.h
 )
+
+# Link against libmicrohttpd
+target_link_libraries(dummy-output PRIVATE ${MHD_LIBRARIES})
+target_include_directories(dummy-output PRIVATE ${MHD_INCLUDE_DIRS})
 
 install(
     TARGETS dummy-output
@@ -26,3 +34,4 @@ if (ENABLE_DOC_MANPAGE)
         DESTINATION "${INSTALL_DIR_MAN}/man7"
     )
 endif()
+
