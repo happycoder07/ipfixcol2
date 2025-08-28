@@ -91,8 +91,12 @@ struct instance_data {
     atomic_uint_fast64_t rps;
     
 
-    /* last snapshot used by metrics thread (not used in hot path) */
-    uint64_t last_snapshot;
+    /* Rolling average RPS calculation - 10 second window */
+    uint64_t rps_history[10];  /* Store last 10 seconds of RPS values */
+    uint64_t rps_history_index; /* Current position in circular buffer */
+    uint64_t rps_history_sum;   /* Sum of all values in history */
+    uint64_t rps_history_count; /* Number of valid entries in history */
+    uint64_t last_snapshot;     /* last snapshot used by metrics thread */
 
     /* thread control */
     atomic_int stop_threads;
@@ -252,7 +256,7 @@ metrics_handler(void *cls, struct MHD_Connection *connection,
         "# HELP dummy_packets_total Total packets processed\n"
         "# TYPE dummy_packets_total counter\n"
         "dummy_packets_total %" PRIu64 "\n"
-        "# HELP dummy_records_per_second Live records per second rate\n"
+        "# HELP dummy_records_per_second Rolling average records per second (10-second window)\n"
         "# TYPE dummy_records_per_second gauge\n"
         "dummy_records_per_second %" PRIu64 "\n"
         "# HELP dummy_ingest_latency_ms Average latency from flow end to processing (ms)\n"
@@ -311,11 +315,26 @@ metrics_thread(void *arg)
             delta = 0;
         }
         
-
-        
         inst->last_snapshot = now;
-        /* publish gauge */
-        atomic_store_explicit(&inst->rps, (uint_fast64_t)delta, memory_order_relaxed);
+        
+        /* Update rolling average RPS calculation */
+        /* Remove old value from sum if we're replacing an existing entry */
+        if (inst->rps_history_count >= 10) {
+            inst->rps_history_sum -= inst->rps_history[inst->rps_history_index];
+        } else {
+            inst->rps_history_count++;
+        }
+        
+        /* Add new value to history */
+        inst->rps_history[inst->rps_history_index] = delta;
+        inst->rps_history_sum += delta;
+        
+        /* Update circular buffer index */
+        inst->rps_history_index = (inst->rps_history_index + 1) % 10;
+        
+        /* Calculate and publish rolling average */
+        uint64_t avg_rps = inst->rps_history_count > 0 ? inst->rps_history_sum / inst->rps_history_count : 0;
+        atomic_store_explicit(&inst->rps, (uint_fast64_t)avg_rps, memory_order_relaxed);
 
         /* minimal, infrequent printf - avoid doing this if you need absolute max throughput 
         if (inst->config && inst->config->en_stats) {
@@ -346,7 +365,14 @@ ipx_plugin_init(ipx_ctx_t *ctx, const char *params)
     atomic_init(&data->cnt_pkts, 0);
     atomic_init(&data->rps, 0);
     atomic_init(&data->stop_threads, 0);
+    
+    /* initialize rolling average RPS fields */
+    memset(data->rps_history, 0, sizeof(data->rps_history));
+    data->rps_history_index = 0;
+    data->rps_history_sum = 0;
+    data->rps_history_count = 0;
     data->last_snapshot = 0;
+    
     atomic_init(&data->total_latency_ms, 0);
     atomic_init(&data->latency_count, 0);
     atomic_init(&data->last_latency_update_ms, 0);
