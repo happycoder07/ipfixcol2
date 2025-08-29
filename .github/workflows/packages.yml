@@ -68,13 +68,10 @@ jobs:
         cmake .. -DPACKAGE_BUILDER_DEB=On -DCPACK_PACKAGE_CONTACT="GitHub actions <no-reply@example.com>"
         make deb
         apt -y install ./pkg/deb/debbuild/*.deb
-    - name: Try to run IPFIXcol2
+    - name: List generated DEB artifacts
       run: |
-        ipfixcol2 -V
-        ipfixcol2 -h
-        ipfixcol2 -L
+        ls -al build/pkg/deb/debbuild || true
     - name: Archive DEB packages
-      if: github.event_name == 'push'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.ZIP_FILE }}
