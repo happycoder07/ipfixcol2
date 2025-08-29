@@ -1,15 +1,11 @@
 name: Build DEB packages
 
 on:
-  # Ignore changes in extra plugins (as they are not tested here)
   push:
-    paths-ignore:
-      - 'extra_plugins/**'
     tags:
       - 'v*'
   pull_request:
-    paths-ignore:
-      - 'extra_plugins/**'
+  workflow_dispatch:
 
 permissions:
   contents: write
