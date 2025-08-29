@@ -5,9 +5,14 @@ on:
   push:
     paths-ignore:
       - 'extra_plugins/**'
+    tags:
+      - 'v*'
   pull_request:
     paths-ignore:
       - 'extra_plugins/**'
+
+permissions:
+  contents: write
 
 jobs:
   deb:
@@ -80,5 +85,16 @@ jobs:
           build/pkg/deb/debbuild/*.ddeb
           build/pkg/deb/debbuild/*.tar.gz
           build/pkg/deb/debbuild/*.dsc
+    - name: Publish DEBs to GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          build/pkg/deb/debbuild/*.deb
+          build/pkg/deb/debbuild/*.ddeb
+          build/pkg/deb/debbuild/*.tar.gz
+          build/pkg/deb/debbuild/*.dsc
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
  
